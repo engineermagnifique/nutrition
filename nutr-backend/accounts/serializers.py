@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Institution, UserProfile
+from .models import Institution, UserProfile, EmailVerification
 
 
 class InstitutionSerializer(serializers.ModelSerializer):
@@ -27,16 +27,17 @@ class InstitutionRegistrationSerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     institution_id = serializers.CharField(source='institution.institution_id', read_only=True)
     institution_name = serializers.CharField(source='institution.name', read_only=True)
+    age = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = UserProfile
         fields = [
             'id', 'firebase_uid', 'email', 'full_name', 'role',
             'institution_id', 'institution_name',
-            'date_of_birth', 'gender', 'phone',
-            'is_active', 'created_at', 'updated_at',
+            'date_of_birth', 'age', 'gender', 'phone',
+            'email_verified', 'is_active', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'firebase_uid', 'email', 'role', 'institution_id', 'institution_name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'firebase_uid', 'email', 'role', 'institution_id', 'institution_name', 'age', 'email_verified', 'is_active', 'created_at', 'updated_at']
 
 
 class ElderlyRegistrationSerializer(serializers.Serializer):
@@ -68,10 +69,21 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 class AdminUserListSerializer(serializers.ModelSerializer):
     institution_name = serializers.CharField(source='institution.name', read_only=True)
     institution_id = serializers.CharField(source='institution.institution_id', read_only=True)
+    age = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = UserProfile
         fields = [
             'id', 'firebase_uid', 'email', 'full_name', 'role',
-            'institution_id', 'institution_name', 'is_active', 'created_at',
+            'institution_id', 'institution_name', 'date_of_birth', 'age',
+            'email_verified', 'is_active', 'created_at',
         ]
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(min_length=6, max_length=6)
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()

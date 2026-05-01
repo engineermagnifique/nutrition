@@ -23,6 +23,8 @@ class ImprovementLogListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         uid = self.request.query_params.get('user_id') or self.request.data.get('user_id')
         if uid and user.role in ('institution', 'system_admin'):
+            if user.role == 'system_admin':
+                return get_object_or_404(UserProfile, pk=uid)
             return get_object_or_404(UserProfile, pk=uid, institution=user.institution)
         return user
 

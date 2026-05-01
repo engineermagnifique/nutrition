@@ -1,4 +1,5 @@
 import logging
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -17,7 +18,10 @@ logger = logging.getLogger('nutritionxai')
 def _resolve_target_user(request):
     uid = request.query_params.get('user_id') or request.data.get('user_id')
     if uid and request.user.role in ('institution', 'system_admin'):
-        return UserProfile.objects.get(pk=uid)
+        qs = UserProfile.objects.filter(pk=uid)
+        if request.user.role == 'institution':
+            qs = qs.filter(institution=request.user.institution)
+        return get_object_or_404(qs)
     return request.user
 
 
@@ -142,8 +146,11 @@ class UserHealthSummaryView(APIView):
         if user_id:
             if request.user.role == 'elderly':
                 return Response({'status': 'error', 'message': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+            qs = UserProfile.objects.filter(pk=user_id)
+            if request.user.role == 'institution':
+                qs = qs.filter(institution=request.user.institution)
             try:
-                target = UserProfile.objects.get(pk=user_id, institution=request.user.institution)
+                target = qs.get()
             except UserProfile.DoesNotExist:
                 return Response({'status': 'error', 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
         else:

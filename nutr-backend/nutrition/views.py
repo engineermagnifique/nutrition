@@ -66,6 +66,8 @@ class MealLogListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         user_id = self.request.query_params.get('user_id') or self.request.data.get('user_id')
         if user_id and user.role in ('institution', 'system_admin'):
+            if user.role == 'system_admin':
+                return get_object_or_404(UserProfile, pk=user_id)
             return get_object_or_404(UserProfile, pk=user_id, institution=user.institution)
         return user
 
@@ -161,9 +163,13 @@ class DailySummaryView(APIView):
             date = timezone.now().date()
         user = request.user
         user_id = request.query_params.get('user_id')
-        target = (get_object_or_404(UserProfile, pk=user_id, institution=user.institution)
-                  if user_id and user.role in ('institution', 'system_admin')
-                  else user)
+        if user_id and user.role in ('institution', 'system_admin'):
+            if user.role == 'system_admin':
+                target = get_object_or_404(UserProfile, pk=user_id)
+            else:
+                target = get_object_or_404(UserProfile, pk=user_id, institution=user.institution)
+        else:
+            target = user
         meals = MealLog.objects.filter(user=target, date=date).prefetch_related('items__food_item')
         agg = meals.aggregate(tc=Sum('total_calories'), tp=Sum('total_protein'),
                               tch=Sum('total_carbohydrates'), tf=Sum('total_fat'))

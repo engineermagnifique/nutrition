@@ -12,6 +12,7 @@ from .serializers import (
     InstitutionSerializer, InstitutionRegistrationSerializer,
     ElderlyRegistrationSerializer, UserProfileSerializer,
     UserProfileUpdateSerializer, AdminUserListSerializer,
+    VerifyEmailSerializer, ResendVerificationSerializer,
 )
 from . import services
 
@@ -53,6 +54,48 @@ class ElderlyRegisterView(APIView):
         return success_response(data={'user': UserProfileSerializer(user).data},
                                 message='User registered successfully.',
                                 status_code=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=['auth'], request=VerifyEmailSerializer,
+               responses={200: None})
+class VerifyEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = VerifyEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            services.verify_email_code(
+                serializer.validated_data['email'],
+                serializer.validated_data['code'],
+            )
+        except ValueError as e:
+            return Response({'status': 'error', 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return success_response(message='Email verified successfully. You can now log in.')
+
+
+@extend_schema(tags=['auth'], request=ResendVerificationSerializer,
+               responses={200: None})
+class ResendVerificationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResendVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        from .models import UserProfile
+        try:
+            user = UserProfile.objects.get(email=email)
+        except UserProfile.DoesNotExist:
+            return Response({'status': 'error', 'message': 'No account found with this email.'}, status=status.HTTP_404_NOT_FOUND)
+        if user.email_verified:
+            return Response({'status': 'error', 'message': 'Email is already verified.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            services.send_verification_email(user)
+        except Exception as e:
+            logger.error(f'Failed to resend verification email: {e}')
+            return Response({'status': 'error', 'message': 'Failed to send email. Try again later.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return success_response(message='Verification code sent. Check your inbox.')
 
 
 @extend_schema(tags=['auth'])

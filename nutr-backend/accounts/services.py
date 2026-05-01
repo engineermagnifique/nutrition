@@ -1,15 +1,13 @@
 import logging
+from datetime import timedelta
 from django.conf import settings
+from django.core.mail import send_mail
+from django.utils import timezone
 
 logger = logging.getLogger('nutritionxai')
 
 
 def verify_firebase_token(token: str) -> dict:
-    """Verify a Firebase ID token and return the decoded payload.
-
-    In DEBUG mode, tokens prefixed with 'devuid:' are accepted as mock tokens
-    and return a synthetic decoded payload without calling Firebase.
-    """
     if settings.DEBUG and token.startswith('devuid:'):
         uid = token[7:]
         logger.debug(f'DEV: using mock Firebase token for uid={uid}')
@@ -26,8 +24,61 @@ def verify_firebase_token(token: str) -> dict:
         raise ValueError(f'Invalid Firebase token: {e}')
 
 
+def send_verification_email(user) -> str:
+    from .models import EmailVerification
+    EmailVerification.objects.filter(user=user, is_used=False).delete()
+    code = EmailVerification.generate_code()
+    EmailVerification.objects.create(
+        user=user,
+        code=code,
+        expires_at=timezone.now() + timedelta(minutes=10),
+    )
+    send_mail(
+        subject='NutritionX AI — Verify your email',
+        message=(
+            f'Hello {user.full_name},\n\n'
+            f'Your email verification code is:\n\n'
+            f'    {code}\n\n'
+            f'This code expires in 10 minutes.\n\n'
+            f'If you did not register, please ignore this email.\n\n'
+            f'— NutritionX AI Team'
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+    logger.info(f'Verification email sent to {user.email}')
+    return code
+
+
+def verify_email_code(email: str, code: str):
+    from .models import UserProfile, EmailVerification
+    try:
+        user = UserProfile.objects.get(email=email)
+    except UserProfile.DoesNotExist:
+        raise ValueError('No account found with this email.')
+
+    if user.email_verified:
+        raise ValueError('Email is already verified.')
+
+    verification = (
+        EmailVerification.objects
+        .filter(user=user, code=code, is_used=False, expires_at__gt=timezone.now())
+        .order_by('-created_at')
+        .first()
+    )
+    if not verification:
+        raise ValueError('Invalid or expired verification code.')
+
+    verification.is_used = True
+    verification.save(update_fields=['is_used'])
+    user.email_verified = True
+    user.save(update_fields=['email_verified'])
+    logger.info(f'Email verified for user {user.id}')
+    return user
+
+
 def register_institution(validated_data: dict) -> tuple:
-    """Create Institution and its admin UserProfile from verified token data."""
     from .models import Institution, UserProfile
     decoded = verify_firebase_token(validated_data['firebase_token'])
     firebase_uid = decoded['uid']
@@ -48,12 +99,12 @@ def register_institution(validated_data: dict) -> tuple:
         role=UserProfile.ROLE_INSTITUTION,
         institution=institution,
     )
+    send_verification_email(user)
     logger.info(f'Institution registered: {institution.institution_id}')
     return institution, user
 
 
 def register_elderly_user(validated_data: dict) -> 'UserProfile':
-    """Create an elderly UserProfile linked to an institution."""
     from .models import Institution, UserProfile
     decoded = verify_firebase_token(validated_data['firebase_token'])
     firebase_uid = decoded['uid']
@@ -75,5 +126,6 @@ def register_elderly_user(validated_data: dict) -> 'UserProfile':
         gender=validated_data['gender'],
         phone=validated_data.get('phone', ''),
     )
+    send_verification_email(user)
     logger.info(f'Elderly user registered: {user.id} at {institution.institution_id}')
     return user

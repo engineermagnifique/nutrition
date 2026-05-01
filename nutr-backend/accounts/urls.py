@@ -5,6 +5,10 @@ urlpatterns = [
     # Public registration
     path('institution/register/', views.InstitutionRegisterView.as_view(), name='institution-register'),
     path('user/register/', views.ElderlyRegisterView.as_view(), name='elderly-register'),
+
+    # Email verification
+    path('verify-email/', views.VerifyEmailView.as_view(), name='verify-email'),
+    path('resend-verification/', views.ResendVerificationView.as_view(), name='resend-verification'),
     
     path('profile/', views.UserProfileView.as_view(), name='user-profile'),
     path('institution/profile/', views.InstitutionProfileView.as_view(), name='institution-profile'),

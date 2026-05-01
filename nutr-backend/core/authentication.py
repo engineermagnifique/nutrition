@@ -5,29 +5,15 @@ from rest_framework.exceptions import AuthenticationFailed
 
 logger = logging.getLogger('nutritionxai')
 
-_firebase_initialized = False
-
-
-def _init_firebase():
-    global _firebase_initialized
-    if _firebase_initialized:
-        return True
-    try:
-        import firebase_admin
-        from firebase_admin import credentials
-        if not firebase_admin._apps:
-            cred_path = settings.FIREBASE_CREDENTIALS_PATH
-            cred = credentials.Certificate(cred_path)
-            firebase_admin.initialize_app(cred)
-        _firebase_initialized = True
-        return True
-    except Exception as e:
-        logger.warning(f"Firebase init failed: {e}. Token verification will fail for real tokens.")
-        return False
-
 
 class FirebaseAuthentication(BaseAuthentication):
-    """Authenticates requests using Firebase ID tokens (Bearer scheme)."""
+    """
+    Authenticates requests using Firebase ID tokens sent as:
+        Authorization: Bearer <firebase_id_token>
+
+    Development shortcut (works whenever DEBUG=True):
+        Authorization: Bearer devtoken:<user_id>
+    """
 
     def authenticate(self, request):
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -36,46 +22,51 @@ class FirebaseAuthentication(BaseAuthentication):
         token = auth_header[7:].strip()
         if not token:
             return None
-        return self._verify_token(token)
 
-    def _verify_token(self, token):
-        # Development bypass: "devtoken:<user_id>" works only when DEBUG=True
-        if settings.DEBUG and token.startswith('devtoken:'):
-            return self._dev_bypass(token[9:])
+        # ── Development bypass ─────────────────────────────────────────────
+        if token.startswith('devtoken:') and getattr(settings, 'DEBUG', False):
+            user_id_str = token[len('devtoken:'):]
+            return self._dev_bypass(user_id_str)
 
+        # ── Firebase verification ──────────────────────────────────────────
+        return self._verify_firebase_token(token)
+
+    # ------------------------------------------------------------------
+    def _dev_bypass(self, user_id_str: str):
+        from accounts.models import UserProfile
+        try:
+            user = UserProfile.objects.select_related('institution').get(pk=int(user_id_str))
+        except (UserProfile.DoesNotExist, ValueError, TypeError):
+            raise AuthenticationFailed(f'Dev bypass: no user with id={user_id_str!r}')
+        if not user.is_active:
+            raise AuthenticationFailed('Account is deactivated.')
+        logger.debug('DEV AUTH: user=%s role=%s', user.id, user.role)
+        return (user, f'devtoken:{user_id_str}')
+
+    def _verify_firebase_token(self, token: str):
         try:
             import firebase_admin
-            from firebase_admin import auth as firebase_auth
-            _init_firebase()
-            decoded = firebase_auth.verify_id_token(token)
-        except Exception as e:
-            raise AuthenticationFailed(f'Invalid or expired Firebase token: {e}')
+            from firebase_admin import auth as fb_auth, credentials
+            if not firebase_admin._apps:
+                cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
+                firebase_admin.initialize_app(cred)
+            decoded = fb_auth.verify_id_token(token)
+        except Exception as exc:
+            raise AuthenticationFailed(f'Invalid Firebase token: {exc}')
 
         firebase_uid = decoded.get('uid')
         if not firebase_uid:
-            raise AuthenticationFailed('Token missing uid claim.')
+            raise AuthenticationFailed('Token missing uid.')
 
         from accounts.models import UserProfile
         try:
             user = UserProfile.objects.select_related('institution').get(firebase_uid=firebase_uid)
         except UserProfile.DoesNotExist:
-            raise AuthenticationFailed('No account found. Register first.')
+            raise AuthenticationFailed('No account found for this Firebase user. Register first.')
 
         if not user.is_active:
             raise AuthenticationFailed('Account is deactivated.')
-
         return (user, token)
-
-    def _dev_bypass(self, user_id: str):
-        from accounts.models import UserProfile
-        try:
-            user = UserProfile.objects.select_related('institution').get(pk=int(user_id))
-        except (UserProfile.DoesNotExist, ValueError):
-            raise AuthenticationFailed(f'Dev bypass: no user with id={user_id}')
-        if not user.is_active:
-            raise AuthenticationFailed('Account is deactivated.')
-        logger.debug(f'DEV AUTH BYPASS for user {user.id} ({user.role})')
-        return (user, f'devtoken:{user_id}')
 
     def authenticate_header(self, request):
         return 'Bearer realm="NutritionX AI"'
