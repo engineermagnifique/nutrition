@@ -99,7 +99,10 @@ def register_institution(validated_data: dict) -> tuple:
         role=UserProfile.ROLE_INSTITUTION,
         institution=institution,
     )
-    send_verification_email(user)
+    try:
+        send_verification_email(user)
+    except Exception as e:
+        logger.error(f'Failed to send verification email to {user.email}: {e}')
     logger.info(f'Institution registered: {institution.institution_id}')
     return institution, user
 
@@ -126,6 +129,9 @@ def register_elderly_user(validated_data: dict) -> 'UserProfile':
         gender=validated_data['gender'],
         phone=validated_data.get('phone', ''),
     )
-    send_verification_email(user)
+    try:
+        send_verification_email(user)
+    except Exception as e:
+        logger.error(f'Failed to send verification email to {user.email}: {e}')
     logger.info(f'Elderly user registered: {user.id} at {institution.institution_id}')
     return user
