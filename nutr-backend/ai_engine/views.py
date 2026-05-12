@@ -8,8 +8,8 @@ from rest_framework.views import APIView
 from core.permissions import IsElderyOrInstitution
 from core.exceptions import success_response
 from accounts.models import UserProfile
-from .models import Recommendation, Prediction
-from .serializers import RecommendationSerializer, PredictionSerializer
+from .models import Recommendation, Prediction, WeeklyReport
+from .serializers import RecommendationSerializer, PredictionSerializer, WeeklyReportSerializer
 from . import services
 
 logger = logging.getLogger('nutritionxai')
@@ -114,3 +114,40 @@ class PredictionDetailView(generics.RetrieveAPIView):
         if user.role == 'elderly':
             return Prediction.objects.filter(user=user)
         return Prediction.objects.filter(user__institution=user.institution)
+
+
+@extend_schema(tags=['ai'])
+class WeeklyReportListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsElderyOrInstitution]
+    serializer_class = WeeklyReportSerializer
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return WeeklyReport.objects.none()
+        user = self.request.user
+        if user.role == 'elderly':
+            return WeeklyReport.objects.filter(user=user)
+        uid = self.request.query_params.get('user_id')
+        if uid:
+            return WeeklyReport.objects.filter(user_id=uid, user__institution=user.institution)
+        return WeeklyReport.objects.filter(user__institution=user.institution)
+
+
+@extend_schema(tags=['ai'])
+class GenerateWeeklyReportView(APIView):
+    permission_classes = [IsAuthenticated, IsElderyOrInstitution]
+
+    def post(self, request):
+        target, err = _resolve_user(request)
+        if err:
+            return err
+        try:
+            report = services.generate_weekly_report(target)
+        except Exception as e:
+            logger.error('Weekly report failed for user %s: %s', target.id, e)
+            return Response({'status': 'error', 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return success_response(
+            data=WeeklyReportSerializer(report).data,
+            message='Weekly report generated.',
+            status_code=status.HTTP_201_CREATED,
+        )

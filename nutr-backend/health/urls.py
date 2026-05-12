@@ -11,6 +11,11 @@ urlpatterns = [
     path('goals/', views.HealthGoalListCreateView.as_view(), name='health-goals'),
     path('goals/<int:pk>/', views.HealthGoalDetailView.as_view(), name='health-goal-detail'),
 
+    path('medications/', views.MedicationListCreateView.as_view(), name='medications'),
+    path('medications/<int:pk>/', views.MedicationDetailView.as_view(), name='medication-detail'),
+
+    path('preferences/', views.UserPreferencesView.as_view(), name='user-preferences'),
+
     path('summary/', views.UserHealthSummaryView.as_view(), name='health-summary'),
     path('summary/<int:user_id>/', views.UserHealthSummaryView.as_view(), name='health-summary-user'),
 ]

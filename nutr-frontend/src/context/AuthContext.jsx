@@ -9,20 +9,16 @@ export function AuthProvider({ children }) {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
-        setProfileLoading(true);
         try {
           const res = await authService.getProfile();
-          setProfile(res.data);
+          setProfile(res.data?.data ?? res.data);
         } catch {
           setProfile(null);
-        } finally {
-          setProfileLoading(false);
         }
       } else {
         setProfile(null);
@@ -33,10 +29,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   const refreshProfile = async () => {
-    if (!firebaseUser) return;
+    if (!auth.currentUser) return;
     try {
       const res = await authService.getProfile();
-      setProfile(res.data);
+      setProfile(res.data?.data ?? res.data);
     } catch {
       setProfile(null);
     }
@@ -47,20 +43,22 @@ export function AuthProvider({ children }) {
     setProfile(null);
   };
 
-  const value = {
-    firebaseUser,
-    profile,
-    loading: loading || profileLoading,
-    isAuthenticated: !!firebaseUser,
-    isProfileComplete: !!profile,
-    isEmailVerified: profile?.email_verified ?? false,
-    role: profile?.role ?? null,
-    logout,
-    refreshProfile,
-    setProfile,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{
+      firebaseUser,
+      profile,
+      loading,
+      isAuthenticated: !!firebaseUser,
+      isProfileComplete: !!profile,
+      isEmailVerified: profile?.email_verified ?? false,
+      role: profile?.role ?? null,
+      logout,
+      refreshProfile,
+      setProfile,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

@@ -118,18 +118,83 @@ export default function UserDetail() {
           </Card>
 
           <Card>
-            <CardHeader title="Recent AI Recommendations" action={<span className="text-xs text-gray-400">Latest {recs.length}</span>} />
+            <CardHeader title="AI Recommendations" action={<span className="text-xs text-gray-400">Latest {recs.length}</span>} />
             {recs.length > 0 ? (
-              <div className="space-y-2">
-                {recs.map((r) => (
-                  <div key={r.id} className="p-3 bg-primary-50 rounded-lg border border-primary-100">
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>{format(parseISO(r.created_at), 'MMM d, yyyy')}</span>
-                      <span className="font-semibold text-primary-800">{Math.round(r.calorie_target)} kcal/day</span>
+              <div className="space-y-3">
+                {recs.map((r) => {
+                  const raw = r.raw_response || {};
+                  const risk = raw.overall_risk ?? 'low';
+                  const riskColors = {
+                    low:      { bg: '#D7F2E1', border: '#A8E2BC', text: '#1F5C36', badge: '#bbf7d0', badgeText: '#166534' },
+                    medium:   { bg: '#FFF1C9', border: '#FFE08F', text: '#7A5800', badge: '#fef3c7', badgeText: '#92400e' },
+                    high:     { bg: '#FFE5D1', border: '#FFD0AE', text: '#9A4B1F', badge: '#ffedd5', badgeText: '#9a3412' },
+                    critical: { bg: '#FBDAE0', border: '#F4B5BF', text: '#7A1F33', badge: '#fee2e2', badgeText: '#991b1b' },
+                  };
+                  const c = riskColors[risk] ?? riskColors.low;
+                  const trending = raw.trending ?? [];
+                  const actions = (raw.quick_actions ?? []).slice(0, 2);
+                  return (
+                    <div key={r.id} style={{ background: `linear-gradient(135deg,${c.bg},#fffdf9)`, border: `1.5px solid ${c.border}`, borderRadius: 12, padding: '14px 16px', fontFamily: "'DM Sans',sans-serif" }}>
+                      {/* Header row */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: c.text, fontWeight: 700, background: c.badge, padding: '2px 10px', borderRadius: 20, textTransform: 'capitalize', border: `1px solid ${c.border}` }}>
+                          {risk} risk
+                        </span>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {r.calorie_target && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#2E7D32', background: '#f0fdf4', padding: '2px 10px', borderRadius: 20, border: '1px solid #bbf7d0' }}>
+                              {Math.round(r.calorie_target)} kcal/day
+                            </span>
+                          )}
+                          <span style={{ fontSize: 11, color: '#9ca3af' }}>{format(parseISO(r.created_at), 'MMM d, yyyy')}</span>
+                        </div>
+                      </div>
+
+                      {/* Summary */}
+                      {(r.notes || raw.plain_summary) && (
+                        <p style={{ margin: '0 0 10px', fontSize: 12, color: '#5a4a3a', lineHeight: 1.75 }}>{r.notes || raw.plain_summary}</p>
+                      )}
+
+                      {/* BMI + stats row */}
+                      {(raw.bmi || raw.bmi_category) && (
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                          {raw.bmi && (
+                            <div style={{ background: '#fffdf9', borderRadius: 8, padding: '6px 12px', border: `1px solid ${c.border}`, textAlign: 'center' }}>
+                              <p style={{ margin: '0 0 1px', fontSize: 9, color: '#a8967f', fontWeight: 700, textTransform: 'uppercase' }}>BMI</p>
+                              <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#2a1f14' }}>{raw.bmi}</p>
+                              {raw.bmi_category && <p style={{ margin: 0, fontSize: 9, color: c.text, fontWeight: 600 }}>{raw.bmi_category}</p>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Trends */}
+                      {trending.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 6, marginBottom: 10 }}>
+                          {trending.slice(0, 3).map((t, i) => (
+                            <div key={i} style={{ background: '#fffdf9', border: '1px solid #F0E6D2', borderRadius: 8, padding: '8px 10px' }}>
+                              <p style={{ margin: '0 0 1px', fontSize: 9, color: '#a8967f', fontWeight: 700, textTransform: 'uppercase' }}>{t.label}</p>
+                              <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#2a1f14' }}>{t.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Key actions */}
+                      {actions.length > 0 && (
+                        <div style={{ borderTop: `1px solid ${c.border}`, paddingTop: 8 }}>
+                          <p style={{ margin: '0 0 6px', fontSize: 9, fontWeight: 700, color: '#a8967f', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recommended Actions</p>
+                          {actions.map((a, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 4 }}>
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#2E7D32', flexShrink: 0, marginTop: 5 }} />
+                              <p style={{ margin: 0, fontSize: 11, color: '#374151', lineHeight: 1.5 }}><strong>{a.action}</strong></p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {r.notes && <p className="text-xs text-gray-700">{r.notes}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : <p className="text-sm text-gray-400">No recommendations available.</p>}
           </Card>

@@ -10,20 +10,6 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-let app;
-let auth;
-
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-} catch (e) {
-  console.warn('Firebase initialization failed. Auth features will be unavailable.', e);
-  // Create a minimal stub so imports don't crash
-  auth = {
-    currentUser: null,
-    onAuthStateChanged: (cb) => { cb(null); return () => {}; },
-  };
-}
-
-export { auth };
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
 export default app;

@@ -13,4 +13,10 @@ export const healthService = {
   updateGoal: (id, data) => api.patch(`/health/goals/${id}/`, data),
   deleteGoal: (id) => api.delete(`/health/goals/${id}/`),
   getSummary: (userId) => userId ? api.get(`/health/summary/${userId}/`) : api.get('/health/summary/'),
+  getMedications: (params) => api.get('/health/medications/', { params }),
+  createMedication: (data) => api.post('/health/medications/', data),
+  updateMedication: (id, data) => api.patch(`/health/medications/${id}/`, data),
+  deleteMedication: (id) => api.delete(`/health/medications/${id}/`),
+  getPreferences: () => api.get('/health/preferences/'),
+  updatePreferences: (data) => api.put('/health/preferences/', data),
 };

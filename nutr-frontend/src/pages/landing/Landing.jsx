@@ -4,6 +4,7 @@ import Footer from '../../components/layout/Footer';
 import HeroSection from './HeroSection';
 import HowItWorksSection from './HowItWorksSection';
 import TestimonialsSection from './TestimonialsSection';
+import ReadySection from './ReadySection';
 import ContactSection from './ContactSection';
 
 export default function Landing() {
@@ -15,6 +16,7 @@ export default function Landing() {
         <HeroSection />
         <HowItWorksSection />
         <TestimonialsSection />
+        <ReadySection />
         <ContactSection />
       </main>
       <Footer />

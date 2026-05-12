@@ -10,4 +10,5 @@ export const nutritionService = {
   addMealItem: (mealId, data) => api.post(`/nutrition/meals/${mealId}/items/`, data),
   removeMealItem: (mealId, itemId) => api.delete(`/nutrition/meals/${mealId}/items/${itemId}/`),
   getDailySummary: (params) => api.get('/nutrition/daily-summary/', { params }),
+  searchFoods: (query) => api.post('/nutrition/scan/', { query }),
 };

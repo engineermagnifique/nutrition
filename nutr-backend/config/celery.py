@@ -17,6 +17,10 @@ app.conf.beat_schedule = {
         'task': 'tasks.scheduled.update_predictions',
         'schedule': crontab(hour=0, minute=0, day_of_week='monday'),
     },
+    'weekly-reports': {
+        'task': 'tasks.scheduled.generate_weekly_reports',
+        'schedule': crontab(hour=7, minute=0, day_of_week='sunday'),
+    },
     'alert-evaluation': {
         'task': 'tasks.scheduled.evaluate_alerts',
         'schedule': crontab(minute='*/30'),

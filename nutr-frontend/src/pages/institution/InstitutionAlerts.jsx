@@ -20,7 +20,10 @@ export default function InstitutionAlerts() {
 
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['institution-alerts', filter],
-    queryFn: () => alertsService.getAlerts(params).then((r) => r.data),
+    queryFn: () => alertsService.getAlerts(params).then((r) => {
+      const d = r.data;
+      return d?.results ?? (Array.isArray(d) ? d : []);
+    }),
   });
 
   const markRead = useMutation({

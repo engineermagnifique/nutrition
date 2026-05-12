@@ -23,6 +23,24 @@ def generate_daily_recommendations(self):
     return {'generated': count, 'timestamp': str(timezone.now())}
 
 
+@shared_task(name='tasks.scheduled.generate_weekly_reports', bind=True, max_retries=3)
+def generate_weekly_reports(self):
+    """Generate weekly health reports every Sunday for all active elderly users."""
+    from accounts.models import UserProfile
+    from ai_engine.services import generate_weekly_report
+
+    users = UserProfile.objects.filter(role='elderly', is_active=True)
+    count = 0
+    for user in users:
+        try:
+            generate_weekly_report(user)
+            count += 1
+        except Exception as exc:
+            logger.error(f'Weekly report failed for user {user.id}: {exc}')
+    logger.info(f'Weekly reports generated for {count} users.')
+    return {'reports_generated': count}
+
+
 @shared_task(name='tasks.scheduled.update_predictions', bind=True, max_retries=3)
 def update_predictions(self):
     """Weekly prediction update for all active elderly users."""

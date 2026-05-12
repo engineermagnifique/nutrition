@@ -63,18 +63,58 @@ class MedicalCondition(models.Model):
         return f'{self.condition_name} ({self.severity}) - {self.user}'
 
 
+class Medication(models.Model):
+    FREQ_ONCE_DAILY    = 'once_daily'
+    FREQ_TWICE_DAILY   = 'twice_daily'
+    FREQ_THREE_DAILY   = 'three_times_daily'
+    FREQ_AS_NEEDED     = 'as_needed'
+    FREQ_WEEKLY        = 'weekly'
+    FREQ_CHOICES = [
+        (FREQ_ONCE_DAILY,  'Once daily'),
+        (FREQ_TWICE_DAILY, 'Twice daily'),
+        (FREQ_THREE_DAILY, 'Three times daily'),
+        (FREQ_AS_NEEDED,   'As needed'),
+        (FREQ_WEEKLY,      'Weekly'),
+    ]
+
+    user            = models.ForeignKey('accounts.UserProfile', on_delete=models.CASCADE, related_name='medications')
+    medication_name = models.CharField(max_length=200)
+    dosage          = models.CharField(max_length=100, blank=True, help_text='e.g. 500 mg')
+    frequency       = models.CharField(max_length=20, choices=FREQ_CHOICES, default=FREQ_ONCE_DAILY)
+    purpose         = models.CharField(max_length=200, blank=True, help_text='What this medicine is for')
+    with_food       = models.BooleanField(default=True, help_text='Should be taken with food')
+    is_current      = models.BooleanField(default=True)
+    start_date      = models.DateField(null=True, blank=True)
+    notes           = models.TextField(blank=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    updated_at      = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'medications'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.medication_name} ({self.dosage}) — {self.user}'
+
+
 class HealthGoal(models.Model):
-    GOAL_WEIGHT_LOSS = 'weight_loss'
-    GOAL_WEIGHT_GAIN = 'weight_gain'
-    GOAL_MAINTENANCE = 'maintenance'
+    GOAL_WEIGHT_LOSS        = 'weight_loss'
+    GOAL_WEIGHT_GAIN        = 'weight_gain'
+    GOAL_MAINTENANCE        = 'maintenance'
     GOAL_DISEASE_MANAGEMENT = 'disease_management'
-    GOAL_MUSCLE_GAIN = 'muscle_gain'
+    GOAL_MUSCLE_GAIN        = 'muscle_gain'
+    GOAL_ENERGY             = 'energy_improvement'
+    GOAL_RECOVERY           = 'recovery_from_illness'
+    GOAL_HEALTHY_EATING     = 'general_healthy_eating'
     GOAL_CHOICES = [
-        (GOAL_WEIGHT_LOSS, 'Weight Loss'),
-        (GOAL_WEIGHT_GAIN, 'Weight Gain'),
-        (GOAL_MAINTENANCE, 'Weight Maintenance'),
+        (GOAL_WEIGHT_LOSS,        'Weight Loss'),
+        (GOAL_WEIGHT_GAIN,        'Weight Gain'),
+        (GOAL_MAINTENANCE,        'Weight Maintenance'),
         (GOAL_DISEASE_MANAGEMENT, 'Disease Management'),
-        (GOAL_MUSCLE_GAIN, 'Muscle Gain'),
+        (GOAL_MUSCLE_GAIN,        'Muscle Gain'),
+        (GOAL_ENERGY,             'Energy Improvement'),
+        (GOAL_RECOVERY,           'Recovery from Illness'),
+        (GOAL_HEALTHY_EATING,     'General Healthy Eating'),
     ]
 
     user = models.ForeignKey('accounts.UserProfile', on_delete=models.CASCADE, related_name='health_goals')
@@ -91,3 +131,47 @@ class HealthGoal(models.Model):
 
     def __str__(self):
         return f'{self.goal_type} goal for {self.user}'
+
+
+class UserPreferences(models.Model):
+    DIET_NONE        = 'none'
+    DIET_VEGETARIAN  = 'vegetarian'
+    DIET_VEGAN       = 'vegan'
+    DIET_HALAL       = 'halal'
+    DIET_KOSHER      = 'kosher'
+    DIET_HINDU_VEG   = 'hindu_vegetarian'
+    DIET_CHOICES = [
+        (DIET_NONE,       'No restrictions'),
+        (DIET_VEGETARIAN, 'Vegetarian'),
+        (DIET_VEGAN,      'Vegan'),
+        (DIET_HALAL,      'Halal'),
+        (DIET_KOSHER,     'Kosher'),
+        (DIET_HINDU_VEG,  'Hindu Vegetarian'),
+    ]
+
+    LIFESTYLE_OFFICE   = 'office_worker'
+    LIFESTYLE_PHYSICAL = 'physical_labor'
+    LIFESTYLE_RETIRED  = 'retired'
+    LIFESTYLE_ACTIVE   = 'active_outdoors'
+    LIFESTYLE_STUDENT  = 'student'
+    LIFESTYLE_CHOICES = [
+        (LIFESTYLE_OFFICE,   'Office / desk worker'),
+        (LIFESTYLE_PHYSICAL, 'Physical labor / manual work'),
+        (LIFESTYLE_RETIRED,  'Retired'),
+        (LIFESTYLE_ACTIVE,   'Active outdoors (farming, sport)'),
+        (LIFESTYLE_STUDENT,  'Student'),
+    ]
+
+    user             = models.OneToOneField('accounts.UserProfile', on_delete=models.CASCADE, related_name='preferences')
+    dietary_type     = models.CharField(max_length=20, choices=DIET_CHOICES, default=DIET_NONE)
+    disliked_foods   = models.JSONField(default=list, blank=True, help_text='List of foods the user dislikes')
+    favorite_foods   = models.JSONField(default=list, blank=True, help_text='List of foods the user enjoys')
+    daily_lifestyle  = models.CharField(max_length=20, choices=LIFESTYLE_CHOICES, default=LIFESTYLE_OFFICE)
+    additional_notes = models.TextField(blank=True)
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_preferences'
+
+    def __str__(self):
+        return f'Preferences for {self.user} ({self.dietary_type})'

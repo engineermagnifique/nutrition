@@ -13,7 +13,10 @@ export default function UserList() {
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['institution-users'],
-    queryFn: () => authService.getInstitutionUsers().then((r) => r.data),
+    queryFn: () => authService.getInstitutionUsers().then((r) => {
+      const d = r.data;
+      return d?.results ?? (Array.isArray(d) ? d : []);
+    }),
   });
 
   const filtered = users.filter((u) =>

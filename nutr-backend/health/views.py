@@ -9,8 +9,8 @@ from rest_framework.views import APIView
 from core.permissions import IsElderyOrInstitution, IsInstitutionOrAdmin
 from core.exceptions import success_response
 from accounts.models import UserProfile
-from .models import HealthRecord, MedicalCondition, HealthGoal
-from .serializers import HealthRecordSerializer, MedicalConditionSerializer, HealthGoalSerializer
+from .models import HealthRecord, MedicalCondition, HealthGoal, Medication, UserPreferences
+from .serializers import HealthRecordSerializer, MedicalConditionSerializer, HealthGoalSerializer, MedicationSerializer, UserPreferencesSerializer
 
 logger = logging.getLogger('nutritionxai')
 
@@ -137,6 +137,62 @@ class HealthGoalDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().update(request, *args, **kwargs)
 
 
+@extend_schema(tags=['health'])
+class MedicationListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsElderyOrInstitution]
+    serializer_class = MedicationSerializer
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Medication.objects.none()
+        user = self.request.user
+        if user.role == 'elderly':
+            return Medication.objects.filter(user=user)
+        uid = self.request.query_params.get('user_id')
+        if uid:
+            return Medication.objects.filter(user_id=uid, user__institution=user.institution)
+        return Medication.objects.filter(user__institution=user.institution)
+
+    def perform_create(self, serializer):
+        serializer.save(user=_resolve_target_user(self.request))
+
+
+@extend_schema(tags=['health'])
+class MedicationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsElderyOrInstitution]
+    serializer_class = MedicationSerializer
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Medication.objects.none()
+        user = self.request.user
+        if user.role == 'elderly':
+            return Medication.objects.filter(user=user)
+        return Medication.objects.filter(user__institution=user.institution)
+
+    def update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return super().update(request, *args, **kwargs)
+
+
+@extend_schema(tags=['health'])
+class UserPreferencesView(APIView):
+    """Get or update the current user's dietary preferences and lifestyle."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        prefs, _ = UserPreferences.objects.get_or_create(user=request.user)
+        return success_response(data=UserPreferencesSerializer(prefs).data)
+
+    def put(self, request):
+        prefs, _ = UserPreferences.objects.get_or_create(user=request.user)
+        serializer = UserPreferencesSerializer(prefs, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return success_response(data=serializer.data, message='Preferences updated.')
+        return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
 @extend_schema(tags=['health'], responses={200: OpenApiResponse(description='Full health summary for a user')})
 class UserHealthSummaryView(APIView):
     """Latest health record + all medical conditions + active goals in one call."""
@@ -159,6 +215,8 @@ class UserHealthSummaryView(APIView):
         latest_record = HealthRecord.objects.filter(user=target).order_by('-recorded_at').first()
         conditions = MedicalCondition.objects.filter(user=target)
         goals = HealthGoal.objects.filter(user=target, is_active=True)
+        medications = Medication.objects.filter(user=target, is_current=True)
+        prefs, _ = UserPreferences.objects.get_or_create(user=target)
 
         return success_response(data={
             'user_id': target.id,
@@ -166,4 +224,6 @@ class UserHealthSummaryView(APIView):
             'latest_health_record': HealthRecordSerializer(latest_record).data if latest_record else None,
             'medical_conditions': MedicalConditionSerializer(conditions, many=True).data,
             'active_goals': HealthGoalSerializer(goals, many=True).data,
+            'current_medications': MedicationSerializer(medications, many=True).data,
+            'preferences': UserPreferencesSerializer(prefs).data,
         })

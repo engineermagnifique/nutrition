@@ -62,7 +62,8 @@ class FirebaseAuthentication(BaseAuthentication):
         try:
             user = UserProfile.objects.select_related('institution').get(firebase_uid=firebase_uid)
         except UserProfile.DoesNotExist:
-            raise AuthenticationFailed('No account found for this Firebase user. Register first.')
+            # No backend profile yet — let AllowAny endpoints (registration) proceed anonymously
+            return None
 
         if not user.is_active:
             raise AuthenticationFailed('Account is deactivated.')

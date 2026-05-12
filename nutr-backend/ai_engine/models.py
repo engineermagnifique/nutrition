@@ -62,3 +62,32 @@ class Prediction(models.Model):
 
     def __str__(self):
         return f'{self.prediction_type} prediction for {self.user}'
+
+
+class WeeklyReport(models.Model):
+    user             = models.ForeignKey('accounts.UserProfile', on_delete=models.CASCADE, related_name='weekly_reports')
+    week_start       = models.DateField()
+    week_end         = models.DateField()
+    days_logged      = models.IntegerField(default=0, help_text='Number of days with at least one meal logged')
+    avg_daily_calories  = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    calorie_target      = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    avg_daily_protein   = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    weight_start        = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    weight_end          = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    bmi_end             = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    overall_score       = models.IntegerField(default=0, help_text='0-100 weekly adherence score')
+    summary             = models.TextField(blank=True)
+    wins                = models.JSONField(default=list)
+    improvements        = models.JSONField(default=list)
+    next_week_goals     = models.JSONField(default=list)
+    medication_notes    = models.JSONField(default=list)
+    raw_data            = models.JSONField(default=dict)
+    created_at          = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'weekly_reports'
+        ordering = ['-week_start']
+        unique_together = [('user', 'week_start')]
+
+    def __str__(self):
+        return f'WeeklyReport for {self.user} w/s {self.week_start}'

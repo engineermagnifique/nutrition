@@ -1,7 +1,6 @@
 import logging
 from datetime import timedelta
 from django.conf import settings
-from django.core.mail import send_mail
 from django.utils import timezone
 
 logger = logging.getLogger('nutritionxai')
@@ -26,6 +25,8 @@ def verify_firebase_token(token: str) -> dict:
 
 def send_verification_email(user) -> str:
     from .models import EmailVerification
+    from django.core.mail import EmailMultiAlternatives
+
     EmailVerification.objects.filter(user=user, is_used=False).delete()
     code = EmailVerification.generate_code()
     EmailVerification.objects.create(
@@ -33,20 +34,89 @@ def send_verification_email(user) -> str:
         code=code,
         expires_at=timezone.now() + timedelta(minutes=10),
     )
-    send_mail(
-        subject='NutritionX AI — Verify your email',
-        message=(
-            f'Hello {user.full_name},\n\n'
-            f'Your email verification code is:\n\n'
-            f'    {code}\n\n'
-            f'This code expires in 10 minutes.\n\n'
-            f'If you did not register, please ignore this email.\n\n'
-            f'— NutritionX AI Team'
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
+
+    name = user.full_name or 'there'
+    digits = '  '.join(list(str(code)))
+
+    plain = (
+        f'Hello {name},\n\n'
+        f'Your NutritionX AI verification code is:\n\n'
+        f'    {code}\n\n'
+        f'This code expires in 10 minutes.\n'
+        f'If you did not create this account, you can safely ignore this email.\n\n'
+        f'— NutritionX AI Team'
     )
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f7f4;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:12px;overflow:hidden;
+                    border:1px solid #e0e8e0;">
+        <!-- Header -->
+        <tr>
+          <td style="background:#2E7D32;padding:28px 32px;">
+            <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;
+                      letter-spacing:-0.3px;">
+              NutritionX<span style="color:#86efac;">AI</span>
+            </p>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 32px;">
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0f1f0f;">
+              Verify your email
+            </p>
+            <p style="margin:0 0 28px;font-size:14px;color:#6b7280;line-height:1.6;">
+              Hello {name}, use the code below to verify your email address.
+              It expires in <strong>10 minutes</strong>.
+            </p>
+            <!-- Code box -->
+            <div style="background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;
+                        padding:24px;text-align:center;margin-bottom:28px;">
+              <p style="margin:0 0 6px;font-size:11px;color:#6b7280;
+                        text-transform:uppercase;letter-spacing:0.08em;">
+                Verification Code
+              </p>
+              <p style="margin:0;font-size:36px;font-weight:800;color:#2E7D32;
+                        letter-spacing:0.25em;font-family:monospace;">
+                {digits}
+              </p>
+            </div>
+            <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.6;">
+              If you did not create a NutritionX AI account, you can safely
+              ignore this email.
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8faf8;padding:16px 32px;
+                     border-top:1px solid #e8f0e8;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">
+              &copy; 2026 NutritionX AI &nbsp;|&nbsp; Elderly Nutrition Platform
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    msg = EmailMultiAlternatives(
+        subject='Your NutritionX AI verification code',
+        body=plain,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+    msg.attach_alternative(html, 'text/html')
+    msg.send(fail_silently=False)
+
     logger.info(f'Verification email sent to {user.email}')
     return code
 
@@ -115,10 +185,16 @@ def register_elderly_user(validated_data: dict) -> 'UserProfile':
     if UserProfile.objects.filter(firebase_uid=firebase_uid).exists():
         raise ValueError('A user with this Firebase account already exists.')
 
-    institution = Institution.objects.get(
-        institution_id=validated_data['institution_id'],
-        is_active=True,
-    )
+    try:
+        institution = Institution.objects.get(
+            institution_id=validated_data['institution_id'],
+            is_active=True,
+        )
+    except Institution.DoesNotExist:
+        raise ValueError(
+            f"No active institution found with ID '{validated_data['institution_id']}'. "
+            "Please check the ID with your care home administrator."
+        )
     user = UserProfile.objects.create(
         firebase_uid=firebase_uid,
         email=validated_data['email'],

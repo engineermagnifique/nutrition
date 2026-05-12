@@ -224,14 +224,14 @@ class DashboardView(APIView):
                 'unread_alerts': Alert.objects.filter(institution=user.institution, is_read=False).count(),
             }
         else:
-            latest_record = HealthRecord.objects.filter(user=user).order_by('-recorded_at').first()
+            from health.serializers import HealthRecordSerializer
+            records = HealthRecord.objects.filter(user=user).order_by('-recorded_at')[:12]
+            latest_record = records[0] if records else None
             data = {
                 'profile': UserProfileSerializer(user).data,
-                'latest_health_record': None,
+                'latest_health_record': HealthRecordSerializer(latest_record).data if latest_record else None,
+                'health_records': HealthRecordSerializer(list(reversed(list(records))), many=True).data,
                 'unread_alerts': Alert.objects.filter(user=user, is_read=False).count(),
             }
-            if latest_record:
-                from health.serializers import HealthRecordSerializer
-                data['latest_health_record'] = HealthRecordSerializer(latest_record).data
 
         return success_response(data=data)

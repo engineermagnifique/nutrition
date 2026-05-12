@@ -159,7 +159,11 @@ SPECTACULAR_SETTINGS = {
     ],
 }
 
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000', cast=Csv())
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173',
+    cast=Csv(),
+)
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept', 'accept-encoding', 'authorization', 'content-type',
@@ -185,9 +189,10 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 
-AI_ENGINE_URL = config('AI_ENGINE_URL', default='https://api.example.com/ai/nutrition')
+AI_ENGINE_URL = config('AI_ENGINE_URL', default='http://localhost:8001/ml/recommend')
 AI_ENGINE_API_KEY = config('AI_ENGINE_API_KEY', default='')
 AI_ENGINE_TIMEOUT = config('AI_ENGINE_TIMEOUT', default=30, cast=int)
+
 
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)

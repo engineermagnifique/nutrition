@@ -1,0 +1,28 @@
+recommender:
+  model_type: gradient_boosting      # gradient_boosting | random_forest | neural_net
+  target_columns:
+    - calorie_target
+    - protein_target
+    - carb_target
+    - fat_target
+  categorical_features:
+    - gender
+    - activity_level
+    - primary_condition
+    - goal_type
+  numerical_features:
+    - age
+    - weight_kg
+    - height_cm
+    - bmi
+    - avg_daily_calories
+    - avg_daily_protein
+    - avg_daily_carbs
+    - avg_daily_fat
+  test_size: 0.2
+  checkpoint_dir: saved_models/recommender
+
+serving:
+  host: 0.0.0.0
+  port: 8001
+  workers: 1

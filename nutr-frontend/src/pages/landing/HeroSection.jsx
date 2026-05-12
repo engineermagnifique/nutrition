@@ -210,7 +210,7 @@ function CoachStep() {
   );
 }
 
-/* ─── Main HeroSection ───────────────────────────────────────── */
+
 export default function HeroSection() {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);

@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import generics, status
@@ -93,8 +93,10 @@ class MealLogListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return Response({'status': 'success', 'data': MealLogSerializer(self._created_object).data},
-                        status=status.HTTP_201_CREATED)
+        return Response(
+            {'status': 'success', 'data': MealLogSerializer(self._created_object).data},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema(tags=['nutrition'])
@@ -121,7 +123,6 @@ class MealLogDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 @extend_schema(tags=['nutrition'], request=MealItemCreateSerializer, responses={201: MealItemSerializer})
 class MealItemCreateView(APIView):
-    """Add a food item (with quantity in grams) to an existing meal log."""
     permission_classes = [IsAuthenticated, IsElderyOrInstitution]
 
     def post(self, request, meal_pk):
@@ -132,14 +133,15 @@ class MealItemCreateView(APIView):
         serializer = MealItemCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         item = MealItem.objects.create(meal_log=meal, **serializer.validated_data)
-        return success_response(data=MealItemSerializer(item).data,
-                                message='Food item added to meal.',
-                                status_code=status.HTTP_201_CREATED)
+        return success_response(
+            data=MealItemSerializer(item).data,
+            message='Food item added to meal.',
+            status_code=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema(tags=['nutrition'], responses={200: OpenApiResponse(description='Item removed')})
 class MealItemDeleteView(APIView):
-    """Remove a specific food item from a meal log."""
     permission_classes = [IsAuthenticated, IsElderyOrInstitution]
 
     def delete(self, request, meal_pk, item_pk):
@@ -151,9 +153,8 @@ class MealItemDeleteView(APIView):
         return success_response(message='Food item removed from meal.')
 
 
-@extend_schema(tags=['nutrition'], responses={200: OpenApiResponse(description='Aggregated daily nutrition totals with all meals')})
+@extend_schema(tags=['nutrition'])
 class DailySummaryView(APIView):
-    """Total calories, protein, carbs, fat for all meals on a given date."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -171,8 +172,10 @@ class DailySummaryView(APIView):
         else:
             target = user
         meals = MealLog.objects.filter(user=target, date=date).prefetch_related('items__food_item')
-        agg = meals.aggregate(tc=Sum('total_calories'), tp=Sum('total_protein'),
-                              tch=Sum('total_carbohydrates'), tf=Sum('total_fat'))
+        agg = meals.aggregate(
+            tc=Sum('total_calories'), tp=Sum('total_protein'),
+            tch=Sum('total_carbohydrates'), tf=Sum('total_fat'),
+        )
         return success_response(data={
             'date': str(date),
             'total_calories': agg['tc'] or Decimal('0'),
@@ -180,4 +183,30 @@ class DailySummaryView(APIView):
             'total_carbohydrates': agg['tch'] or Decimal('0'),
             'total_fat': agg['tf'] or Decimal('0'),
             'meals': MealLogSerializer(meals, many=True).data,
+        })
+
+
+@extend_schema(
+    tags=['nutrition'],
+    responses={200: OpenApiResponse(description='Food items matching the text query')},
+)
+class FoodScanView(APIView):
+    """Text-based food search. POST {"query": "chicken"} to find matching food items."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        query = request.data.get('query', '').strip()
+        if not query:
+            return Response(
+                {'status': 'error', 'message': 'query is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        words = query.split()
+        q = Q()
+        for word in words:
+            q |= Q(name__icontains=word)
+        items = FoodItem.objects.filter(is_active=True).filter(q)[:20]
+        return success_response(data={
+            'foods': FoodItemSerializer(items, many=True).data,
+            'query': query,
         })
